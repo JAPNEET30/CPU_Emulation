@@ -53,7 +53,7 @@ struct CPU {
 		A = X = Y = 0;
 		memory.Initialize();
 	}
-	Byte FetchByte(u32 Cycles, Mem& memory)
+	Byte FetchByte(u32& Cycles, Mem& memory)
 	{
 		Byte DATA = memory[PC];
 		PC++;
@@ -61,9 +61,22 @@ struct CPU {
 		return DATA;
 	}
 
+	Byte ReadByte(u32& Cycles,Byte Address, Mem& memory)
+	{
+		Byte DATA = memory[Address];
+		Cycles--;
+		return DATA;
+	}
+
+	void LDASetStatus() {
+		Z = (A == 0);
+		N = (A & 0b10000000) > 0;
+	}
+
 	//opcode
 	static constexpr Byte
-		INS_LDA_IM = 0xA9;
+		INS_LDA_IM = 0xA9,
+		INS_LDA_ZP = 0xA5;
 
 	void Execute(u32 Cycles, Mem& memory)
 	{
@@ -76,14 +89,19 @@ struct CPU {
 			{
 				Byte Value = FetchByte(Cycles, memory);
 				A = Value;
-				Z = (A == 0);
-				N = (A & 0b10000000) > 0;
-
+				LDASetStatus();
+			}break;
+			case INS_LDA_ZP:
+			{
+				Byte ZeroPageAddr = FetchByte(Cycles, memory);
+				A = ReadByte(Cycles, ZeroPageAddr, memory);
+				LDASetStatus();
+				
 			}break;
 			default:
 			{
-				printf("Instruction not handled %d", Ins); 
-			}
+				printf("Instruction not handled %d", Ins);
+			}break;
 			}
 		}
 	}
@@ -93,9 +111,10 @@ int main() {
 	CPU cpu;
 	cpu.Reset(mem);
 	//start - inline a little program
-	mem[0xFFFC] = CPU::INS_LDA_IM;
+	mem[0xFFFC] = CPU::INS_LDA_ZP;
 	mem[0xFFFD] = 0x42;
+	mem[0x0042] = 0x84;
 	//end - inline little program
-	cpu.Execute(2, mem);
+	cpu.Execute(3, mem);
 	return 0;
 }
