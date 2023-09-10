@@ -28,6 +28,14 @@ struct Mem
 		//assert here Address is < MAX_MEM
 		return Data[Address];
 	}
+	//write 2 bytes
+	void WriteWord(u32 Cycles, Word Value, u32 Address)
+	{
+
+		Data[Address] = Value & 0xFF;
+		Data[Address + 1] = (Value >> 8);
+		Cycles-=2;
+	}
 };
 struct CPU {
 	
@@ -61,6 +69,16 @@ struct CPU {
 		return DATA;
 	}
 
+	Byte FetchWord(u32& Cycles, Mem& memory)
+	{
+		Word DATA = memory[PC];
+		PC++;
+		DATA = (memory[PC]<<8);
+		PC++;
+		Cycles-=2;
+		return DATA;
+	}
+
 	Byte ReadByte(u32& Cycles,Byte Address, Mem& memory)
 	{
 		Byte DATA = memory[Address];
@@ -76,7 +94,9 @@ struct CPU {
 	//opcode
 	static constexpr Byte
 		INS_LDA_IM = 0xA9,
-		INS_LDA_ZP = 0xA5;
+		INS_LDA_ZP = 0xA5,
+		INS_LDA_ZPX = 0xB5,
+		INS_JSR = 0x20;
 
 	void Execute(u32 Cycles, Mem& memory)
 	{
@@ -98,6 +118,25 @@ struct CPU {
 				LDASetStatus();
 				
 			}break;
+			case INS_LDA_ZPX:
+			{
+				Byte ZeroPageAddr = FetchByte(Cycles, memory);
+				ZeroPageAddr += X;
+				Cycles--;
+				A = ReadByte(Cycles, ZeroPageAddr, memory);
+				LDASetStatus();
+
+			}break;
+			case INS_JSR:
+			{
+				Word SubAddr =
+					FetchWord(Cycles, memory);
+				SP++;
+				memory[SP] = PC-1;
+				memory.WriteWord(Cycles, PC - 1, SP);
+				PC = SubAddr;
+				Cycles--;
+			}break;
 			default:
 			{
 				printf("Instruction not handled %d", Ins);
@@ -113,7 +152,9 @@ int main() {
 	//start - inline a little program
 	mem[0xFFFC] = CPU::INS_LDA_ZP;
 	mem[0xFFFD] = 0x42;
-	mem[0x0042] = 0x84;
+	mem[0xFFFE] = 0x84;
+	mem[0x4242] = CPU::INS_LDA_IM;
+	mem[0x4243] = 0x84;
 	//end - inline little program
 	cpu.Execute(3, mem);
 	return 0;
